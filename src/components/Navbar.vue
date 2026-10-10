@@ -1,7 +1,7 @@
 <template>
   <nav class="h-12 sticky top-0 z-30 bg-white rounded-xl dark:bg-gray-800 shadow-md px-4 py-2 flex justify-between items-center">
-    <router-link to="/" class="text-xl font-bold text-blue-500">
-      <i class="fas fa-heart"></i> 少即是多
+    <router-link to="/" class="text-xl font-bold text-blue-500 truncate max-w-[10rem] sm:max-w-xs">
+      <i class="fas fa-heart"></i>{{ siteSubtitle ? ' ' + siteSubtitle : '' }}
     </router-link>
     
     <div class="hidden md:flex items-center gap-2 flex-1 max-w-2xl mx-4">
@@ -88,16 +88,16 @@
     <Teleport to="body">
       <PasswordDialog
         :visible="showPasswordDialog"
-        :categories="categories"
         @close="showPasswordDialog = false"
         @password-validated="showAddWebsiteDialog = true"
       />
     </Teleport>
-    
+
     <Teleport to="body">
       <AddWebsiteDialog
         :visible="showAddWebsiteDialog"
-        :categories="categories"
+        :category-tree="categoryTree"
+        :default-category-id="defaultCategoryId"
         @close="showAddWebsiteDialog = false"
         @submit="handleSubmitWebsite"
       />
@@ -109,6 +109,7 @@
 import PasswordDialog from './PasswordDialog.vue';
 import AddWebsiteDialog from './AddWebsiteDialog.vue';
 import { isPasswordValidated } from '../utils/auth';
+import { getSiteSubtitle } from '../api/settingsApi';
 
 export default {
   components: {
@@ -116,7 +117,17 @@ export default {
     AddWebsiteDialog
   },
   emits: ['toggle-dark-mode', 'submit-website'],
-  props: ['darkMode', 'categories'],
+  props: {
+    darkMode: { type: Boolean, default: false },
+    // 树节点: { category, children, directCount, totalCount }
+    categoryTree: { type: Array, default: () => [] },
+    defaultCategoryId: { type: String, default: null }
+  },
+  computed: {
+    siteSubtitle() {
+      return getSiteSubtitle();
+    }
+  },
   data() {
     return {
       showEngines: false,

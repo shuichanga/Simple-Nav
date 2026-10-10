@@ -149,12 +149,24 @@
                 </div>
                 <div>
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">视图ID (viewId)</label>
-                  <input 
+                  <input
                     type="text"
                     v-model="viewId"
                     placeholder="请输入表格视图ID"
                     class="w-full bg-gray-100 dark:bg-gray-700 rounded px-3 py-2"
                   >
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">设置表ID (settingsDatasheetId，跨设备同步设置)</label>
+                  <input
+                    type="text"
+                    v-model="settingsDatasheetId"
+                    placeholder="设置表的 datasheetId，留空则不同步"
+                    class="w-full bg-gray-100 dark:bg-gray-700 rounded px-3 py-2"
+                  >
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    需手动在维基云创建设置表（含 key / value 两个文本字段），将 ID 填入此处。同步范围：主题、背景、布局、预览开关、分类层级/图标/排序（深色模式跟随各设备本地）。
+                  </p>
                 </div>
                 <div class="flex gap-4">
                   <button
@@ -194,6 +206,39 @@
               </div>
             </div>
             
+            <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+              <h3 class="text-xl font-semibold mb-4 flex items-center">
+                <i class="fas fa-heading text-purple-500 mr-2"></i>
+                站点信息
+              </h3>
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">网站标题（侧边栏与浏览器标签页）</label>
+                  <input
+                    type="text"
+                    v-model="siteTitle"
+                    placeholder="Simple NAV"
+                    class="w-full bg-gray-100 dark:bg-gray-700 rounded px-3 py-2"
+                  >
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">副标题（顶部导航）</label>
+                  <input
+                    type="text"
+                    v-model="siteSubtitle"
+                    placeholder="少即是多"
+                    class="w-full bg-gray-100 dark:bg-gray-700 rounded px-3 py-2"
+                  >
+                </div>
+                <button
+                  @click="saveSiteInfo"
+                  class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded"
+                >
+                  保存站点信息
+                </button>
+              </div>
+            </div>
+
             <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
               <h3 class="text-xl font-semibold mb-4 flex items-center">
                 <i class="fas fa-exchange-alt text-green-500 mr-2"></i>
@@ -256,105 +301,88 @@
                 </div>
               </div>
             </div>
-            
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow mt-6">
-              <div 
-                class="p-6 cursor-pointer flex justify-between items-center" 
-                @click="isIconSettingsExpanded = !isIconSettingsExpanded"
+
+            <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+              <h3 class="text-xl font-semibold mb-4 flex items-center">
+                <i class="fas fa-sitemap text-blue-500 mr-2"></i>
+                分类管理
+              </h3>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                维护分类层级（一级/二级）、排序与图标。二级分类以「一级/二级」形式写入网站的分类字段，无需额外配置。
+              </p>
+              <router-link
+                to="/manage-categories"
+                class="inline-block bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded"
               >
-                <h3 class="text-xl font-semibold flex items-center">
-                  <i class="fas fa-icons text-yellow-500 mr-2"></i>
-                  分类图标设置
-                </h3>
-                <i :class="`fas fa-chevron-down transition-transform duration-300 ${isIconSettingsExpanded ? 'transform rotate-180' : ''}`"></i>
-              </div>
-              
-              <div 
-                v-if="isIconSettingsExpanded" 
-                class="p-6 pt-0 space-y-4 border-t border-gray-200 dark:border-gray-700"
-              >
-                <div v-if="loadingCategories" class="text-center py-4 text-gray-500">
-                  <i class="fas fa-spinner fa-spin mr-2"></i>正在加载分类数据...
-                </div>
-                <div v-else-if="loadError" class="text-center py-4 text-red-500">
-                  <i class="fas fa-exclamation-circle mr-2"></i>{{ loadError }}
-                  <button 
-                    @click="loadCategories"
-                    class="ml-2 text-blue-500 hover:text-blue-700 underline"
+                <i class="fas fa-arrow-right mr-2"></i>前往分类管理
+              </router-link>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+              <h3 class="text-xl font-semibold mb-4 flex items-center">
+                <i class="fas fa-database text-red-500 mr-2"></i>
+                数据备份
+              </h3>
+              <div class="space-y-4">
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                  完整备份包含全部网站数据、收藏和偏好设置。恢复时按记录 ID 合并到维基云（已存在的更新、缺失的新增，不会删除现有记录），执行前需确认。
+                </p>
+                <div class="flex flex-wrap gap-4">
+                  <button
+                    @click="exportBackup"
+                    :disabled="backupLoading"
+                    class="bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white px-6 py-2 rounded"
                   >
-                    刷新
+                    <i class="fas fa-download mr-2"></i>导出完整备份
                   </button>
-                </div>
-                <div v-else-if="categories.length === 0" class="text-center py-4 text-gray-500">
-                  未找到分类数据
-                  <button 
-                    @click="loadCategories"
-                    class="ml-2 text-blue-500 hover:text-blue-700 underline"
-                  >
-                    刷新
-                  </button>
-                </div>
-                <div v-else>
-                  <div v-for="category in categories" :key="category" class="flex items-center gap-4">
-                    <div class="min-w-[120px]">
-                      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ category }}</label>
-                    </div>
-                    <div class="flex-1 flex items-center gap-2">
-                      <div class="flex items-center justify-center w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-full">
-                        <i :class="categoryIcons[category] || 'fas fa-question-circle'"></i>
-                      </div>
-                      <div class="flex-1 flex items-center">
-                        <input
-                          v-model="categoryIcons[category]"
-                          type="text"
-                          placeholder="输入完整图标类名，如：fas fa-wrench"
-                          class="flex-1 bg-gray-100 dark:bg-gray-700 rounded px-3 py-1"
-                          style="height: 36px;"
-                        >
-                        <div class="relative ml-2">
-                          <button 
-                            class="p-1 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center"
-                            @click="showIconDropdown[category] = !showIconDropdown[category]"
-                            style="min-width: 36px; height: 36px;"
-                          >
-                            <i class="fas fa-chevron-down"></i>
-                          </button>
-                          <div 
-                            v-if="showIconDropdown[category]" 
-                            class="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto"
-                          >
-                            <div 
-                              v-for="icon in availableIcons" 
-                              :key="icon.name"
-                              class="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                              @click="categoryIcons[category] = `fas ${icon.name}`; showIconDropdown[category] = false"
-                            >
-                              <i :class="`fas ${icon.name} mr-2 text-xl`"></i>
-                              <span>{{ icon.displayName }}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                  <div class="relative">
+                    <input
+                      type="file"
+                      ref="backupFileInput"
+                      accept=".json"
+                      class="absolute inset-0 opacity-0 cursor-pointer"
+                      @change="restoreBackup"
+                    >
+                    <button
+                      :disabled="backupLoading"
+                      class="bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white px-6 py-2 rounded"
+                    >
+                      <i class="fas fa-upload mr-2"></i>从备份文件恢复
+                    </button>
                   </div>
                 </div>
-                <div class="flex gap-4">
-                  <button
-                    @click="saveCategoryIcons"
-                    class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded"
-                    :disabled="loadingCategories"
+                <div v-if="backupLoading" class="text-sm text-gray-500 dark:text-gray-400">
+                  <i class="fas fa-spinner fa-spin mr-2"></i>{{ backupProgress }}
+                </div>
+                <div v-if="backupMessage" class="p-3 rounded-lg" :class="backupMessageType === 'success' ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300'">
+                  <i :class="backupMessageType === 'success' ? 'fas fa-check-circle mr-2' : 'fas fa-exclamation-circle mr-2'"></i>
+                  {{ backupMessage }}
+                </div>
+                <div>
+                  <h4 class="text-base font-medium mb-2">本地自动快照（滚动保留最近 3 份，浏览或修改数据后自动生成）：</h4>
+                  <div v-if="snapshots.length === 0" class="text-sm text-gray-500 dark:text-gray-400">
+                    暂无快照
+                  </div>
+                  <div
+                    v-for="snap in snapshots"
+                    :key="snap.date"
+                    class="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700"
                   >
-                    保存图标配置
-                  </button>
-                  <button
-                    @click="resetCategoryIcons"
-                    class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded"
-                  >
-                    重置默认图标
-                  </button>
+                    <span class="text-sm text-gray-600 dark:text-gray-300">
+                      {{ formatSnapshotDate(snap.date) }} · {{ snap.count }} 个网站
+                    </span>
+                    <button
+                      @click="restoreSnapshot(snap)"
+                      :disabled="backupLoading"
+                      class="text-sm text-blue-500 hover:text-blue-700 disabled:opacity-50"
+                    >
+                      恢复此快照
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
+            
           </div>
         </div>
         
@@ -366,7 +394,10 @@
 
 <script>
 import Footer from '../components/Footer.vue'
+import { fetchData } from '../api/fetchData'
 import { THEMES, getTheme, setTheme, applyTheme, getDarkMode, getThemeBackground, setThemeBackground, getThemeBackgroundImage, setThemeBackgroundImage, applyBackground } from '../utils/theme'
+import { buildBackup, downloadBackup, saveSnapshot, getSnapshots, restoreFromBackup } from '../utils/backup'
+import { scheduleSettingsSync, applySiteMeta, getSiteTitle, getSiteSubtitle } from '../api/settingsApi'
 
 export default {
   components: { Footer },
@@ -399,33 +430,9 @@ export default {
       apiKey: localStorage.getItem('apiKey') || '',
       datasheetId: localStorage.getItem('datasheetId') || '',
       viewId: localStorage.getItem('viewId') || '',
-      categories: [],
-      loadingCategories: false,
-      categoryIcons: {},
-      loadError: null,
-      availableIcons: [
-        { name: 'fa-wrench', displayName: '工具' },
-        { name: 'fa-blog', displayName: '博客' },
-        { name: 'fa-film', displayName: '影视' },
-        { name: 'fa-fire', displayName: '火焰' },
-        { name: 'fa-cloud', displayName: '云朵' },
-        { name: 'fa-image', displayName: '图片' },
-        { name: 'fa-palette', displayName: '调色板' },
-        { name: 'fa-building', displayName: '建筑' },
-        { name: 'fa-video', displayName: '视频' },
-        { name: 'fa-key', displayName: '钥匙' },
-        { name: 'fa-cloud-upload-alt', displayName: '上传' },
-        { name: 'fa-wifi', displayName: 'WiFi' },
-        { name: 'fa-cogs', displayName: '齿轮' },
-        { name: 'fa-globe', displayName: '地球' },
-        { name: 'fa-book', displayName: '书籍' },
-        { name: 'fa-music', displayName: '音乐' },
-        { name: 'fa-gamepad', displayName: '游戏手柄' },
-        { name: 'fa-shopping-cart', displayName: '购物车' },
-        { name: 'fa-question-circle', displayName: '问号' }
-      ],
-      isIconSettingsExpanded: false,
-      showIconDropdown: {},
+      settingsDatasheetId: localStorage.getItem('settingsDatasheetId') || '',
+      siteTitle: getSiteTitle(),
+      siteSubtitle: getSiteSubtitle(),
       exportOptions: {
         theme: true,
         columns: true,
@@ -434,11 +441,13 @@ export default {
         apiConfig: false
       },
       importMessage: '',
-      importMessageType: ''
+      importMessageType: '',
+      backupLoading: false,
+      backupProgress: '',
+      backupMessage: '',
+      backupMessageType: '',
+      snapshots: getSnapshots()
     }
-  },
-  mounted() {
-    this.loadCategories()
   },
   computed: {
     gradientPreview() {
@@ -457,67 +466,6 @@ export default {
       this.gradientEnd = bg || '#ffffff'
       this.backgroundImage = bgImage
     },
-    loadCategories() {
-      this.loadingCategories = true;
-      this.loadError = null;
-      try {
-        const savedCategories = localStorage.getItem('appCategories');
-        if (savedCategories) {
-          const categories = JSON.parse(savedCategories);
-          if (categories.length > 0) {
-            this.categories = categories;
-            this.loadCategoryIcons();
-            return;
-          }
-        }
-        this.categories = [];
-        this.loadError = '无法获取分类信息，请先访问首页或刷新页面';
-      } catch (error) {
-        this.categories = [];
-        this.loadError = '无法获取分类信息，请先访问首页或刷新页面';
-      } finally {
-        this.loadingCategories = false;
-      }
-    },
-    
-    loadCategoryIcons() {
-      const savedIcons = localStorage.getItem('categoryIcons')
-      const savedIconsObj = savedIcons ? JSON.parse(savedIcons) : {};
-      
-      const newCategoryIcons = {};
-      this.categories.forEach(category => {
-        newCategoryIcons[category] = savedIconsObj[category] || 'fas fa-question-circle';
-      });
-      
-      this.categoryIcons = newCategoryIcons;
-    },
-    
-    saveCategoryIcons() {
-      localStorage.setItem('categoryIcons', JSON.stringify(this.categoryIcons))
-      alert('分类图标配置已保存')
-    },
-    
-    resetCategoryIcons() {
-      this.categoryIcons = {
-        '在线工具': 'fas fa-wrench',
-        '个人博客': 'fas fa-blog',
-        '影视在线': 'fas fa-film',
-        'AI大模型': 'fas fa-fire',
-        '网络存储': 'fas fa-cloud',
-        '素材网站': 'fas fa-image',
-        '灵感图库': 'fas fa-palette',
-        '建筑网站': 'fas fa-building',
-        'AI音视频': 'fas fa-video',
-        'AI绘画': 'fas fa-palette',
-        '破解资源': 'fas fa-key',
-        '云上平台': 'fas fa-cloud-upload-alt',
-        '网站相关': 'fas fa-wifi',
-        '杂项工具': 'fas fa-cogs'
-      }
-      localStorage.setItem('categoryIcons', JSON.stringify(this.categoryIcons))
-      alert('分类图标已重置为默认值')
-    },
-    
     exportConfig() {
       try {
         const config = {
@@ -535,9 +483,14 @@ export default {
         }
         
         if (this.exportOptions.background) {
-          config.settings.background = localStorage.getItem('background');
-          config.settings.backgroundImage = localStorage.getItem('backgroundImage');
-          config.settings.customColor = localStorage.getItem('customColor');
+          config.settings.backgrounds = {};
+          for (const { key } of THEMES) {
+            const bg = getThemeBackground(key);
+            const bgImage = getThemeBackgroundImage(key);
+            if (bg || bgImage) {
+              config.settings.backgrounds[key] = { background: bg, backgroundImage: bgImage };
+            }
+          }
         }
         
         if (this.exportOptions.categoryIcons) {
@@ -586,32 +539,29 @@ export default {
           if (settings.theme !== undefined) {
             localStorage.setItem('theme', settings.theme);
             this.currentTheme = settings.theme;
-            applyTheme(settings.theme);
+            applyTheme(settings.theme, getDarkMode());
           }
-          
+
           if (settings.columns) {
             localStorage.setItem('columns', settings.columns);
             this.columns = parseInt(settings.columns);
           }
-          
-          if (settings.background) {
-            localStorage.setItem('background', settings.background);
-            document.body.style.backgroundColor = settings.background;
-          }
-          
-          if (settings.backgroundImage) {
-            localStorage.setItem('backgroundImage', settings.backgroundImage);
-            document.body.style.backgroundImage = `url('${settings.backgroundImage}')`;
-          }
-          
-          if (settings.customColor) {
-            localStorage.setItem('customColor', settings.customColor);
-            this.customColorHex = settings.customColor;
+
+          if (settings.backgrounds) {
+            for (const [theme, val] of Object.entries(settings.backgrounds)) {
+              setThemeBackground(theme, val.background || '');
+              setThemeBackgroundImage(theme, val.backgroundImage || '');
+            }
           }
           
           if (settings.categoryIcons) {
             localStorage.setItem('categoryIcons', JSON.stringify(settings.categoryIcons));
-            this.categoryIcons = { ...settings.categoryIcons };
+          }
+          if (settings.categoryList) {
+            localStorage.setItem('categoryList', JSON.stringify(settings.categoryList));
+          }
+          if (settings.categoryOrder) {
+            localStorage.setItem('categoryOrder', JSON.stringify(settings.categoryOrder));
           }
           
           if (settings.apiKey) {
@@ -628,7 +578,10 @@ export default {
             localStorage.setItem('viewId', settings.viewId);
             this.viewId = settings.viewId;
           }
-          
+
+          applyBackground(getTheme(), getDarkMode());
+          scheduleSettingsSync();
+
           this.importMessage = '配置导入成功！页面将刷新以应用新配置';
           this.importMessageType = 'success';
           
@@ -671,17 +624,26 @@ export default {
     },
     saveSettings() {
       localStorage.setItem('columns', this.columns)
+      scheduleSettingsSync()
+    },
+    saveSiteInfo() {
+      localStorage.setItem('siteTitle', this.siteTitle.trim());
+      localStorage.setItem('siteSubtitle', this.siteSubtitle.trim());
+      applySiteMeta();
+      scheduleSettingsSync();
+      alert('站点信息已保存');
     },
     saveApiConfig() {
       if (!this.apiKey.trim() || !this.datasheetId.trim() || !this.viewId.trim()) {
         alert('请填写完整的API配置信息');
         return;
       }
-      
+
       localStorage.setItem('apiKey', this.apiKey);
       localStorage.setItem('datasheetId', this.datasheetId);
       localStorage.setItem('viewId', this.viewId);
-      
+      localStorage.setItem('settingsDatasheetId', this.settingsDatasheetId.trim());
+
       alert('API配置已保存，页面将刷新以应用新配置');
       window.location.reload();
     },
@@ -689,12 +651,107 @@ export default {
       this.apiKey = '';
       this.datasheetId = '';
       this.viewId = '';
-      
+      this.settingsDatasheetId = '';
+
       localStorage.removeItem('apiKey');
       localStorage.removeItem('datasheetId');
       localStorage.removeItem('viewId');
-      
+      localStorage.removeItem('settingsDatasheetId');
+
       alert('API配置已重置');
+    },
+
+    collectSettings() {
+      const settings = {};
+      settings.theme = localStorage.getItem('theme');
+      settings.columns = localStorage.getItem('columns');
+      settings.categoryIcons = JSON.parse(localStorage.getItem('categoryIcons') || '{}');
+      settings.categoryList = JSON.parse(localStorage.getItem('categoryList') || '[]');
+      settings.categoryOrder = JSON.parse(localStorage.getItem('categoryOrder') || '{}');
+      settings.backgrounds = {};
+      for (const { key } of THEMES) {
+        const bg = getThemeBackground(key);
+        const bgImage = getThemeBackgroundImage(key);
+        if (bg || bgImage) {
+          settings.backgrounds[key] = { background: bg, backgroundImage: bgImage };
+        }
+      }
+      return settings;
+    },
+
+    async exportBackup() {
+      try {
+        this.backupLoading = true;
+        this.backupProgress = '正在获取网站数据...';
+        const items = await fetchData();
+        const favorites = JSON.parse(localStorage.getItem('favoriteItems')) || [];
+        this.backupProgress = '正在生成备份文件...';
+        downloadBackup(buildBackup(items, favorites, this.collectSettings()));
+        this.backupMessage = `备份已导出，包含 ${items.length} 个网站`;
+        this.backupMessageType = 'success';
+      } catch (error) {
+        this.backupMessage = '导出备份失败：' + error.message;
+        this.backupMessageType = 'error';
+      } finally {
+        this.backupLoading = false;
+        this.backupProgress = '';
+        setTimeout(() => { this.backupMessage = ''; }, 3000);
+      }
+    },
+
+    async restoreBackup(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      try {
+        const backup = JSON.parse(await file.text());
+        if (backup.type !== 'nav-full-backup' || !Array.isArray(backup.items)) {
+          throw new Error('不是有效的备份文件');
+        }
+        const date = backup.exportDate ? new Date(backup.exportDate).toLocaleString() : '未知时间';
+        const ok = confirm(
+          `备份时间：${date}\n包含 ${backup.items.length} 个网站、${(backup.favorites || []).length} 个收藏\n\n` +
+          '恢复方式：按记录ID合并到维基云，已存在的更新、缺失的新增，不会删除现有记录。\n\n确定继续吗？'
+        );
+        if (!ok) return;
+        await this.performRestore(backup);
+      } catch (error) {
+        alert('恢复失败：' + error.message);
+      } finally {
+        event.target.value = '';
+      }
+    },
+
+    async restoreSnapshot(snap) {
+      const date = new Date(snap.date).toLocaleString();
+      const ok = confirm(
+        `将快照恢复到维基云：\n快照时间：${date}\n包含 ${snap.count} 个网站\n\n` +
+        '按记录ID合并不删除，确定继续吗？'
+      );
+      if (!ok) return;
+      await this.performRestore({ items: snap.items, favorites: snap.favorites });
+    },
+
+    async performRestore(backup) {
+      try {
+        this.backupLoading = true;
+        const result = await restoreFromBackup(backup, (done, total) => {
+          this.backupProgress = `正在恢复 ${done}/${total}...`;
+        });
+        this.snapshots = getSnapshots();
+        const failedText = result.failed ? `，失败 ${result.failed}（详情见控制台）` : '';
+        alert(`恢复完成：新增 ${result.added}，更新 ${result.updated}${failedText}`);
+      } catch (error) {
+        alert('恢复失败：' + error.message);
+      } finally {
+        this.backupLoading = false;
+        this.backupProgress = '';
+      }
+    },
+
+    formatSnapshotDate(iso) {
+      const d = new Date(iso);
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
     },
   }
 }

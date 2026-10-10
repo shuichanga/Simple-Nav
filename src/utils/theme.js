@@ -1,5 +1,6 @@
 const THEME_KEY = 'theme';
 const DARK_MODE_KEY = 'darkMode';
+import { scheduleSettingsSync } from '../api/settingsApi';
 
 export const THEMES = [
   { key: 'default', label: '默认', icon: 'fa-circle' },
@@ -21,6 +22,7 @@ export function setTheme(theme) {
   const darkMode = getDarkMode();
   applyTheme(theme, darkMode);
   applyBackground(theme, darkMode);
+  scheduleSettingsSync();
 }
 
 export function setDarkMode(dark) {
@@ -41,8 +43,10 @@ export function applyTheme(theme, darkMode) {
 
   if (darkMode) {
     root.classList.add('dark');
+    root.style.colorScheme = 'dark';
   } else {
     root.classList.remove('dark');
+    root.style.colorScheme = 'light';
   }
 
   if (theme === 'glass') {
@@ -62,6 +66,7 @@ export function setThemeBackground(theme, value) {
   } else {
     localStorage.removeItem(`background_${theme}`);
   }
+  scheduleSettingsSync();
 }
 
 export function getThemeBackgroundImage(theme) {
@@ -74,6 +79,7 @@ export function setThemeBackgroundImage(theme, value) {
   } else {
     localStorage.removeItem(`backgroundImage_${theme}`);
   }
+  scheduleSettingsSync();
 }
 
 export function applyBackground(theme, darkMode) {

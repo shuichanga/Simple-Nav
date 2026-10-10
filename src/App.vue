@@ -1,20 +1,25 @@
 <template>
   <div class="h-screen flex flex-col">
     <div v-if="$route.path === '/'" class="flex flex-1 overflow-hidden relative">
-      <Sidebar 
-        :categories="categories" 
-        :isCollapsed="isSidebarCollapsed"
+      <Sidebar
+        :category-tree="categoryTree"
+        :selected-id="selectedCategoryId"
+        :counts="counts"
+        :favorites-count="favoritesCount"
+        :uncategorized-count="uncategorizedCount"
+        :is-collapsed="isSidebarCollapsed"
         @select-category="filterByCategory"
         @toggle-sidebar="toggleSidebar"
       />
       <main class="flex-1 flex flex-col p-4 overflow-y-auto">
-        <Navbar 
-          :darkMode="darkMode" 
-          :categories="categories"
-          @toggle-dark-mode="toggleDarkMode" 
+        <Navbar
+          :darkMode="darkMode"
+          :category-tree="categoryTree"
+          :default-category-id="selectedCategoryId"
+          @toggle-dark-mode="toggleDarkMode"
           @submit-website="handleSubmitWebsite"
           class="mb-6"/>
-        
+
         <div class="flex-grow">
           <div v-if="loading" class="flex items-center justify-center h-64">
             <div class="text-gray-500 dark:text-gray-400">
@@ -67,16 +72,15 @@
     <Teleport to="body">
       <PasswordDialog
         :visible="showPasswordDialog"
-        :categories="categories"
         @close="showPasswordDialog = false"
         @password-validated="handlePasswordValidated"
       />
     </Teleport>
-    
+
     <Teleport to="body">
       <EditWebsiteDialog
         :visible="showEditDialog"
-        :categories="categories.filter(c => c !== '我的收藏')"
+        :category-tree="categoryTree"
         :websiteData="editingItem"
         @close="showEditDialog = false"
         @submit="handleEditSubmit"
@@ -93,9 +97,12 @@ html, body {
 </style>
 
 <script>
-import { fetchData, addWebsite, deleteWebsite, updateWebsite } from './api/fetchData';
+import { addWebsite, deleteWebsite, updateWebsite } from './api/fetchData';
 import { isPasswordValidated } from './utils/auth';
 import { getTheme, setTheme, applyTheme, applyBackground, getDarkMode, toggleDarkMode } from './utils/theme';
+import { saveSnapshot } from './utils/backup';
+import { loadNavData } from './utils/category';
+import { pullSettings, scheduleSettingsSync } from './api/settingsApi';
 import Navbar from './components/Navbar.vue';
 import Sidebar from './components/Sidebar.vue';
 import Card from './components/Card.vue';
@@ -120,8 +127,10 @@ export default {
     return {
       columns: parseInt(localStorage.getItem('columns')) || 5,
       items: [],
-      categories: [],
-      selectedCategory: null,
+      categoryTree: [],
+      counts: {},
+      favoriteIds: JSON.parse(localStorage.getItem('favoriteItems')) || [],
+      selectedCategoryId: null,
       theme: getTheme(),
       darkMode: getDarkMode(),
       isSidebarCollapsed: window.innerWidth < 768,
@@ -136,32 +145,65 @@ export default {
     };
   },
   computed: {
-    filteredItems() {
-      if (!this.selectedCategory) return this.items;
-      if (this.selectedCategory === '我的收藏') {
-        const favoriteIds = JSON.parse(localStorage.getItem('favoriteItems')) || [];
-        return this.items.filter(item => favoriteIds.includes(item.id));
-      }
-      return this.items.filter(item => item.category === this.selectedCategory);
+    favoritesCount() {
+      return this.items.filter(item => this.favoriteIds.includes(item.id)).length;
     },
+    uncategorizedCount() {
+      return this.items.filter(item => !item.categoryId).length;
+    },
+    // 当前选中分类及其全部二级分类的 id 集合（聚合过滤用）
+    selectedCategoryIds() {
+      const id = this.selectedCategoryId;
+      if (!id || id === 'favorites' || id === 'uncategorized') return null;
+      const node = this.categoryTree.find(n => n.category.id === id);
+      if (node) {
+        return new Set([node.category.id, ...node.children.map(c => c.id)]);
+      }
+      return new Set([id]);
+    },
+    filteredItems() {
+      if (!this.selectedCategoryId) return this.items;
+      if (this.selectedCategoryId === 'favorites') {
+        return this.items.filter(item => this.favoriteIds.includes(item.id));
+      }
+      if (this.selectedCategoryId === 'uncategorized') {
+        return this.items.filter(item => !item.categoryId);
+      }
+      const ids = this.selectedCategoryIds;
+      return ids ? this.items.filter(item => ids.has(item.categoryId)) : this.items;
+    }
   },
   methods: {
     async loadData() {
       try {
         this.loading = true;
         this.error = null;
-        const data = await fetchData();
-        this.items = data;
-        this.categories = ['我的收藏', ...new Set(data.map(item => item.category))];
-        localStorage.setItem('appCategories', JSON.stringify(this.categories));
+        await pullSettings();
+        const data = await loadNavData();
+        this.items = data.items;
+        this.categoryTree = data.tree;
+        this.counts = data.counts;
+        this.favoriteIds = JSON.parse(localStorage.getItem('favoriteItems')) || [];
+        saveSnapshot(this.items);
+        // 首次带分类参数进入时同步选中态
+        if (this.$route.query.category !== undefined) {
+          this.selectedCategoryId = this.resolveCategoryParam(this.$route.query.category);
+        }
       } catch (error) {
         this.error = error.message;
       } finally {
         this.loading = false;
       }
     },
-    filterByCategory(category) {
-      this.selectedCategory = category;
+    resolveCategoryParam(val) {
+      if (!val) return null;
+      if (val === 'favorites' || val === 'uncategorized') return val;
+      const flat = this.categoryTree.flatMap(n => [n.category, ...n.children]);
+      const found = flat.find(c => c.id === val || c.name === val);
+      return found ? found.id : null;
+    },
+    filterByCategory(categoryId) {
+      this.selectedCategoryId = categoryId;
     },
     handleChangeTheme(newTheme) {
       this.theme = newTheme;
@@ -176,6 +218,7 @@ export default {
     togglePreview() {
       this.showPreview = !this.showPreview;
       localStorage.setItem('showPreview', String(this.showPreview));
+      scheduleSettingsSync();
     },
     async handleSubmitWebsite(websiteData) {
       try {
@@ -193,11 +236,12 @@ export default {
       const cards = document.querySelectorAll('.card-container');
       if (!sidebar?.contains(event.target) &&
           !Array.from(cards).some(card => card.contains(event.target))) {
-        this.selectedCategory = null;
+        this.selectedCategoryId = null;
       }
     },
     handleFavoriteChanged() {
-      this.$forceUpdate();
+      this.favoriteIds = JSON.parse(localStorage.getItem('favoriteItems')) || [];
+      saveSnapshot(this.items);
     },
     handleEditClick(item) {
       this.passwordAction = 'edit';
@@ -253,7 +297,13 @@ export default {
   },
   watch: {
     '$route.query.category'(newCategory) {
-      this.selectedCategory = newCategory || null;
+      this.selectedCategoryId = this.resolveCategoryParam(newCategory);
+    },
+    // 从分类管理/设置页返回首页时刷新数据
+    '$route.path'(path) {
+      if (path === '/') {
+        this.loadData();
+      }
     }
   },
   created() {

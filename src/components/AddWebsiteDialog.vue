@@ -18,40 +18,25 @@
       </div>
       
       <form @submit.prevent="submitWebsite">
-        <!-- 分类选择/输入 -->
+        <!-- 分类选择（两级，值为完整路径 "一级" 或 "一级/二级"） -->
         <div class="mb-4">
           <label for="category" class="block text-gray-700 dark:text-gray-300 mb-2">
             分类 <span class="text-red-500">*</span>
           </label>
-          <div class="relative">
-            <!-- 分类下拉菜单 -->
-            <select
-              id="category"
-              v-model="formData.selectedCategory"
-              class="w-full bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-2 border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              @change="handleCategoryChange"
-            >
-              <option value="">选择现有分类</option>
-              <option v-for="category in categories" :key="category" :value="category">
-                {{ category }}
+          <select
+            id="category"
+            v-model="formData.category"
+            required
+            class="w-full bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-2 border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="" disabled>请选择分类</option>
+            <optgroup v-for="node in categoryTree" :key="node.category.id" :label="node.category.name">
+              <option :value="node.category.id">{{ node.category.name }}</option>
+              <option v-for="child in node.children" :key="child.id" :value="child.id">
+                └ {{ child.name }}
               </option>
-              <option value="custom">自定义分类</option>
-            </select>
-          </div>
-          
-          <!-- 自定义分类输入 -->
-          <div v-if="formData.selectedCategory === 'custom'" class="mt-2">
-            <input
-              type="text"
-              v-model="formData.category"
-              class="w-full bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-2 border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="请输入自定义分类名称"
-              required
-            />
-          </div>
-          
-          <!-- 隐藏的分类输入，用于表单验证 -->
-          <input type="hidden" v-model="formData.category" :required="!formData.selectedCategory || formData.selectedCategory === 'custom'" />
+            </optgroup>
+          </select>
         </div>
         
         <!-- 名称输入 -->
@@ -159,15 +144,19 @@ export default {
       type: Boolean,
       default: false
     },
-    categories: {
+    // 树节点: { category, children, directCount, totalCount }
+    categoryTree: {
       type: Array,
       default: () => []
+    },
+    defaultCategoryId: {
+      type: String,
+      default: null
     }
   },
   data() {
     return {
       formData: {
-        selectedCategory: '',
         category: '',
         name: '',
         url: '',
@@ -180,6 +169,17 @@ export default {
       loading: false
     };
   },
+  computed: {
+    // 全部可选分类路径
+    allCategoryIds() {
+      const ids = [];
+      for (const node of this.categoryTree) {
+        ids.push(node.category.id);
+        ids.push(...node.children.map(c => c.id));
+      }
+      return ids;
+    }
+  },
   watch: {
     visible(newVal) {
       if (newVal) {
@@ -188,11 +188,12 @@ export default {
     }
   },
   methods: {
-    // 重置表单
+    // 重置表单（分类默认带出当前筛选的分类）
     resetForm() {
       this.formData = {
-        selectedCategory: '',
-        category: '',
+        category: this.defaultCategoryId && this.allCategoryIds.includes(this.defaultCategoryId)
+          ? this.defaultCategoryId
+          : '',
         name: '',
         url: '',
         icon: '',
@@ -202,36 +203,26 @@ export default {
       this.error = '';
       this.success = '';
     },
-    
-    // 处理分类选择变化
-    handleCategoryChange() {
-      if (this.formData.selectedCategory && this.formData.selectedCategory !== 'custom') {
-        this.formData.category = this.formData.selectedCategory;
-      } else if (this.formData.selectedCategory === 'custom') {
-        this.formData.category = '';
-      }
-    },
-    
+
     // 提交网站
     async submitWebsite() {
       this.loading = true;
       this.error = '';
       this.success = '';
-      
+
       try {
-        // 表单验证
         if (!this.formData.category || !this.formData.name || !this.formData.url) {
           this.error = '请填写所有必填字段';
           return;
         }
-        
+
         // 网址格式验证
         const urlPattern = /^https?:\/\//;
         if (!urlPattern.test(this.formData.url)) {
           this.error = '网址格式不正确，请以http://或https://开头';
           return;
         }
-        
+
         // 构造提交数据
         const websiteData = {
           category: this.formData.category,
@@ -241,13 +232,13 @@ export default {
           description: this.formData.description || '',
           order: this.formData.sortOrder || 0
         };
-        
+
         // 调用父组件传递的提交方法
         await this.$emit('submit', websiteData);
-        
+
         // 显示成功信息
         this.success = '网址提交成功！';
-        
+
         // 重置表单
         setTimeout(() => {
           this.resetForm();
@@ -260,7 +251,7 @@ export default {
         this.loading = false;
       }
     },
-    
+
     // 取消
     cancel() {
       this.$emit('close');

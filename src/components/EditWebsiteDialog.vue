@@ -20,32 +20,20 @@
           <label for="edit-category" class="block text-gray-700 dark:text-gray-300 mb-2">
             分类 <span class="text-red-500">*</span>
           </label>
-          <div class="relative">
-            <select
-              id="edit-category"
-              v-model="formData.selectedCategory"
-              class="w-full bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-2 border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              @change="handleCategoryChange"
-            >
-              <option value="">选择现有分类</option>
-              <option v-for="category in categories" :key="category" :value="category">
-                {{ category }}
+          <select
+            id="edit-category"
+            v-model="formData.category"
+            required
+            class="w-full bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-2 border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="" disabled>请选择分类</option>
+            <optgroup v-for="node in categoryTree" :key="node.category.id" :label="node.category.name">
+              <option :value="node.category.id">{{ node.category.name }}</option>
+              <option v-for="child in node.children" :key="child.id" :value="child.id">
+                └ {{ child.name }}
               </option>
-              <option value="custom">自定义分类</option>
-            </select>
-          </div>
-          
-          <div v-if="formData.selectedCategory === 'custom'" class="mt-2">
-            <input
-              type="text"
-              v-model="formData.category"
-              class="w-full bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-2 border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="请输入自定义分类名称"
-              required
-            />
-          </div>
-          
-          <input type="hidden" v-model="formData.category" :required="!formData.selectedCategory || formData.selectedCategory === 'custom'" />
+            </optgroup>
+          </select>
         </div>
         
         <div class="mb-4">
@@ -147,7 +135,8 @@ export default {
       type: Boolean,
       default: false
     },
-    categories: {
+    // 树节点: { category, children, directCount, totalCount }
+    categoryTree: {
       type: Array,
       default: () => []
     },
@@ -159,7 +148,6 @@ export default {
   data() {
     return {
       formData: {
-        selectedCategory: '',
         category: '',
         name: '',
         url: '',
@@ -187,46 +175,36 @@ export default {
   methods: {
     populateForm() {
       if (!this.websiteData) return;
-      const category = this.websiteData.category || '';
-      const isExistingCategory = this.categories.includes(category);
-      
+
       this.formData = {
-        selectedCategory: isExistingCategory ? category : 'custom',
-        category: category,
+        category: this.websiteData.category || '',
         name: this.websiteData.name || '',
         url: this.websiteData.url || '',
         icon: this.websiteData.icon || '',
         description: this.websiteData.description || '',
         sortOrder: this.websiteData.sortOrder || 0
       };
+
       this.error = '';
       this.success = '';
     },
-    
-    handleCategoryChange() {
-      if (this.formData.selectedCategory && this.formData.selectedCategory !== 'custom') {
-        this.formData.category = this.formData.selectedCategory;
-      } else if (this.formData.selectedCategory === 'custom') {
-        this.formData.category = '';
-      }
-    },
-    
+
     async submitEdit() {
       this.loading = true;
       this.error = '';
-      
+
       try {
         if (!this.formData.category || !this.formData.name || !this.formData.url) {
           this.error = '请填写所有必填字段';
           return;
         }
-        
+
         const urlPattern = /^https?:\/\//;
         if (!urlPattern.test(this.formData.url)) {
           this.error = '网址格式不正确，请以http://或https://开头';
           return;
         }
-        
+
         const websiteData = {
           category: this.formData.category,
           name: this.formData.name,
@@ -235,7 +213,7 @@ export default {
           description: this.formData.description || '',
           order: this.formData.sortOrder || 0
         };
-        
+
         this.$emit('submit', { recordId: this.websiteData.id, data: websiteData });
       } catch (err) {
         this.error = err.message || '修改失败，请稍后重试';
@@ -244,7 +222,7 @@ export default {
         this.loading = false;
       }
     },
-    
+
     cancel() {
       this.$emit('close');
     }

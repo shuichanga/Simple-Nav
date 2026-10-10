@@ -1,8 +1,8 @@
 <template>
   <div class="h-screen flex flex-col">
     <div class="flex flex-1 overflow-hidden relative">
-      <Sidebar 
-        :categories="categories" 
+      <Sidebar
+        :category-tree="categoryTree"
         :isCollapsed="isSidebarCollapsed"
         @toggle-sidebar="toggleSidebar"
         @select-category="selectCategory"
@@ -51,8 +51,9 @@
 </template>
 
 <script>
-import { fetchData } from '../api/fetchData';
 import { getDarkMode, toggleDarkMode } from '../utils/theme';
+import { loadNavData } from '../utils/category';
+import { pullSettings } from '../api/settingsApi';
 import Navbar from '../components/Navbar.vue';
 import Sidebar from '../components/Sidebar.vue';
 import Card from '../components/Card.vue';
@@ -67,15 +68,15 @@ export default {
       allItems: [],
       darkMode: getDarkMode(),
       isSidebarCollapsed: window.innerWidth < 768,
-      categories: [],
+      categoryTree: [],
       error: null
     }
   },
   computed: {
     searchResults() {
       const query = this.searchQuery.toLowerCase();
-      return this.allItems.filter(item => 
-        item.name?.toLowerCase().includes(query) || 
+      return this.allItems.filter(item =>
+        item.name?.toLowerCase().includes(query) ||
         item.description?.toLowerCase().includes(query)
       );
     }
@@ -93,10 +94,12 @@ export default {
       this.loading = true;
       this.searchQuery = query || '';
       this.error = null;
-      
+
       try {
-        this.allItems = await fetchData();
-        this.categories = [...new Set(this.allItems.map(item => item.category))];
+        await pullSettings();
+        const data = await loadNavData();
+        this.allItems = data.items;
+        this.categoryTree = data.tree;
       } catch (error) {
         this.error = error.message;
       } finally {
@@ -109,8 +112,8 @@ export default {
     toggleSidebar() {
       this.isSidebarCollapsed = !this.isSidebarCollapsed;
     },
-    selectCategory(category) {
-      this.$router.push({ path: '/', query: { category } });
+    selectCategory(categoryId) {
+      this.$router.push({ path: '/', query: { category: categoryId || undefined } });
     }
   },
   async created() {

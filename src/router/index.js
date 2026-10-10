@@ -8,6 +8,10 @@ const routes = [
     component: () => import('../views/Settings.vue')
   },
   {
+    path: '/manage-categories',
+    component: () => import('../views/ManageCategories.vue')
+  },
+  {
     path: '/search',
     component: SearchResults
   },

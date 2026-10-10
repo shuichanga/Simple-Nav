@@ -81,10 +81,6 @@ export default {
     visible: {
       type: Boolean,
       default: false
-    },
-    categories: {
-      type: Array,
-      default: () => []
     }
   },
   data() {

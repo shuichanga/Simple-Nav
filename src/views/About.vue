@@ -67,7 +67,7 @@
                 <p>🚀 带娃建筑师 | AI技术学习者 | 个人博主</p>
                 <p>🏠 个人主页： 
                   <a 
-                    href="https://www.jianzhugo.cn" 
+                    href="https://www.shuichanga.cn" 
                     target="_blank"
                     class="text-blue-500 hover:text-blue-700 dark:hover:text-blue-400 underline"
                   >
@@ -76,28 +76,21 @@
                 </p>
                 <p>🌐 个人博客： 
                   <a 
-                    href="https://blog.jianzhugo.cn" 
+                    href="https://blog.shuichanga.cn" 
                     target="_blank"
                     class="text-blue-500 hover:text-blue-700 dark:hover:text-blue-400 underline"
                   >
-                    建筑G博客
+                    Rao's Blog
                   </a>
                 </p>
                 <p>💰 更多AI作品： 
                   <a 
-                    href="https://donate.jianzhugo.cn" 
+                    href="https://shuichanga.cn" 
                     target="_blank"
                     class="text-blue-500 hover:text-blue-700 dark:hover:text-blue-400 underline"
                   >
-                    打赏页面
-                  </a>
-                  <a 
-                    href="https://love.jianzhugo.cn" 
-                    target="_blank"
-                    class="text-blue-500 hover:text-blue-700 dark:hover:text-blue-400 underline"
-                  >
-                    情侣网站
-                  </a>
+                    访问我的个人网站
+                  </a>                  
                 </p>
               </div>
             </div>

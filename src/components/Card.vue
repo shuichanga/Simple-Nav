@@ -3,7 +3,7 @@
      class="card-container flex flex-col bg-white dark:bg-gray-700 rounded-xl shadow-md transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.02] border-2 border-transparent relative overflow-hidden">
     
     <div class="flex items-center p-3 sm:items-start sm:p-4">
-      <img :src="item.icon" alt="icon" class="w-6 h-6 sm:w-8 sm:h-8 mr-2 sm:mr-3 sm:mt-0.5 flex-shrink-0" />
+      <img :src="iconSrc" alt="icon" class="w-6 h-6 sm:w-8 sm:h-8 mr-2 sm:mr-3 sm:mt-0.5 flex-shrink-0" @load="onIconLoad" @error="onIconError" />
       <div class="flex-1 min-w-0">
         <h3 class="text-sm sm:text-base font-bold truncate">{{ item.name }}</h3>
         <p 
@@ -156,6 +156,41 @@ function enqueueLoad(callback) {
   processQueue();
 }
 
+// 图标兜底链：维基云URL → {域名}/favicon.ico → 国内favicon服务 → 默认图
+function iconFallbacks(url) {
+  const list = [];
+  try {
+    const u = new URL(url);
+    if (u.origin) {
+      list.push(u.origin + '/favicon.ico');
+      list.push(`https://api.iowen.cn/favicon/${u.hostname}.png`);
+    }
+  } catch (e) {
+    // url 非法时跳过前两级
+  }
+  list.push('/default.ico');
+  return list;
+}
+
+// 图标解析缓存：原始URL → 已解析可用的URL，避免每次刷新都重试失败链（重复报控制台网络错误）
+const ICON_CACHE_KEY = 'siteIconCache';
+let iconCacheData = null;
+
+function getIconCache() {
+  if (!iconCacheData) {
+    try {
+      iconCacheData = JSON.parse(localStorage.getItem(ICON_CACHE_KEY)) || {};
+    } catch (e) {
+      iconCacheData = {};
+    }
+  }
+  return iconCacheData;
+}
+
+function saveIconCache() {
+  localStorage.setItem(ICON_CACHE_KEY, JSON.stringify(iconCacheData));
+}
+
 export default {
   emits: ['favorite-changed', 'edit', 'delete'],
   props: ['item', 'showPreview'],
@@ -164,7 +199,9 @@ export default {
       favoriteItems: JSON.parse(localStorage.getItem('favoriteItems')) || [],
       previewState: 'idle',
       previewSrc: null,
-      observer: null
+      observer: null,
+      iconSrc: getIconCache()[this.item.icon] || this.item.icon,
+      iconFailStep: 0
     };
   },
   computed: {
@@ -183,6 +220,11 @@ export default {
     }
   },
   watch: {
+    // 编辑后图标可能变化，重置兜底链
+    'item.icon'(newIcon) {
+      this.iconSrc = getIconCache()[newIcon] || newIcon;
+      this.iconFailStep = 0;
+    },
     showPreview(val) {
       if (val) {
         this.$nextTick(() => {
@@ -199,6 +241,26 @@ export default {
     }
   },
   methods: {
+    onIconError() {
+      const chain = iconFallbacks(this.item.url);
+      while (this.iconFailStep < chain.length) {
+        const next = chain[this.iconFailStep++];
+        if (next !== this.iconSrc) {
+          this.iconSrc = next;
+          return;
+        }
+      }
+      // 兜底链走完仍失败，保持现状
+    },
+    onIconLoad() {
+      // 解析结果与原始URL不同（走了兜底）时写入缓存，下次刷新直接命中
+      if (!this.iconSrc || this.iconSrc === this.item.icon) return;
+      const cache = getIconCache();
+      if (cache[this.item.icon] !== this.iconSrc) {
+        cache[this.item.icon] = this.iconSrc;
+        saveIconCache();
+      }
+    },
     setupLazyLoad() {
       const previewArea = this.$refs.previewArea;
       if (!previewArea) return;
