@@ -7,10 +7,10 @@ import { baseUrl, apiRequest, getApiKey } from './fetchData';
 const SETTINGS_ENV_DS = import.meta.env.VITE_VIKA_SETTINGS_DATASHEET_ID;
 
 // 参与同步的 localStorage 键（深色模式不同步，跟随各设备）
+// 注意：API 配置（apiKey/datasheetId/viewId/settingsDatasheetId）与显示偏好
+// （columns/showPreview）永不加入此白名单——前者涉及密钥安全，后者跟随各设备屏幕
 export const SYNC_KEYS = [
   'theme',
-  'columns',
-  'showPreview',
   'background_default',
   'background_glass',
   'backgroundImage_default',
@@ -23,7 +23,8 @@ export const SYNC_KEYS = [
 ];
 
 export function getSettingsDatasheetId() {
-  return SETTINGS_ENV_DS || localStorage.getItem('settingsDatasheetId') || '';
+  // 优先级：本地存储 > 环境变量
+  return localStorage.getItem('settingsDatasheetId') || SETTINGS_ENV_DS || '';
 }
 
 export function isSettingsSyncEnabled() {

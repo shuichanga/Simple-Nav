@@ -161,9 +161,14 @@ export default {
       this.error = '';
       
       try {
-        // 从环境变量获取密码，默认值为123654
-        const correctPassword = import.meta.env.VITE_SUBMIT_PASSWORD || '123654';
-        
+        // 从环境变量获取密码（未配置时功能不可用，避免仓库内出现明文默认密码）
+        const correctPassword = import.meta.env.VITE_SUBMIT_PASSWORD || '';
+
+        if (!correctPassword) {
+          this.error = '站点未配置操作密码（VITE_SUBMIT_PASSWORD 环境变量），请联系站点管理员。';
+          return;
+        }
+
         if (this.password === correctPassword) {
           this.resetLock();
           localStorage.setItem('passwordValidatedAt', Date.now().toString());

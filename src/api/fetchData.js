@@ -2,15 +2,15 @@ export const baseUrl = 'https://api.vika.cn/fusion/v1/datasheets';
 const fieldKey = 'name';
 const DEFAULT_ICON_URL = '/default.ico';
 
-// 共享给其它 API 模块使用
+// 共享给其它 API 模块使用。优先级：本地存储 > 环境变量
 export function getApiKey() {
-  return import.meta.env.VITE_VIKA_API_KEY || localStorage.getItem('apiKey');
+  return localStorage.getItem('apiKey') || import.meta.env.VITE_VIKA_API_KEY;
 }
 
 function getApiConfig(requireViewId = false) {
   const apiKey = getApiKey();
-  const datasheetId = import.meta.env.VITE_VIKA_DATASHEET_ID || localStorage.getItem('datasheetId');
-  const viewId = import.meta.env.VITE_VIKA_VIEW_ID || localStorage.getItem('viewId');
+  const datasheetId = localStorage.getItem('datasheetId') || import.meta.env.VITE_VIKA_DATASHEET_ID;
+  const viewId = localStorage.getItem('viewId') || import.meta.env.VITE_VIKA_VIEW_ID;
 
   if (!apiKey || !datasheetId || (requireViewId && !viewId)) {
     throw new Error('API配置不完整，请前往设置页面配置');

@@ -102,7 +102,7 @@ import { isPasswordValidated } from './utils/auth';
 import { getTheme, setTheme, applyTheme, applyBackground, getDarkMode, toggleDarkMode } from './utils/theme';
 import { saveSnapshot } from './utils/backup';
 import { loadNavData } from './utils/category';
-import { pullSettings, scheduleSettingsSync } from './api/settingsApi';
+import { pullSettings } from './api/settingsApi';
 import Navbar from './components/Navbar.vue';
 import Sidebar from './components/Sidebar.vue';
 import Card from './components/Card.vue';
@@ -216,9 +216,9 @@ export default {
       this.isSidebarCollapsed = !this.isSidebarCollapsed;
     },
     togglePreview() {
+      // 预览开关跟随各设备屏幕，仅存本地，不参与设置表同步
       this.showPreview = !this.showPreview;
       localStorage.setItem('showPreview', String(this.showPreview));
-      scheduleSettingsSync();
     },
     async handleSubmitWebsite(websiteData) {
       try {

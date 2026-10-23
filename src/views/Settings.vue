@@ -184,7 +184,7 @@
                 </div>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
                  <li> 配置说明：登录维基云表格，在「设置」-「API」中获取API密钥；表格ID和视图ID可在表格URL中找到。</li>
-                 <li> 环境变量配置：除了在页面上配置外，还可以通过环境变量进行配置，优先级：环境变量 > 本地存储。</li>
+                 <li> 环境变量配置：除了在页面上配置外，还可以通过环境变量进行配置，优先级：本地存储 > 环境变量（页面上保存过的配置优先生效）。</li>
                 </p>
               </div>
             </div>
@@ -397,7 +397,7 @@ import Footer from '../components/Footer.vue'
 import { fetchData } from '../api/fetchData'
 import { THEMES, getTheme, setTheme, applyTheme, getDarkMode, getThemeBackground, setThemeBackground, getThemeBackgroundImage, setThemeBackgroundImage, applyBackground } from '../utils/theme'
 import { buildBackup, downloadBackup, saveSnapshot, getSnapshots, restoreFromBackup } from '../utils/backup'
-import { scheduleSettingsSync, applySiteMeta, getSiteTitle, getSiteSubtitle } from '../api/settingsApi'
+import { scheduleSettingsSync, applySiteMeta, getSiteTitle, getSiteSubtitle, getSettingsDatasheetId } from '../api/settingsApi'
 
 export default {
   components: { Footer },
@@ -427,6 +427,7 @@ export default {
       ],
       selectedBg: savedBg,
       columns: parseInt(localStorage.getItem('columns')) || 5,
+      // 数据源配置只显示本地存储的值；未在页面上配置时输入框留空（此时由环境变量生效，但不回显）
       apiKey: localStorage.getItem('apiKey') || '',
       datasheetId: localStorage.getItem('datasheetId') || '',
       viewId: localStorage.getItem('viewId') || '',
@@ -623,8 +624,8 @@ export default {
       applyBackground(this.currentTheme, getDarkMode())
     },
     saveSettings() {
+      // 列数跟随各设备屏幕，仅存本地，不参与设置表同步
       localStorage.setItem('columns', this.columns)
-      scheduleSettingsSync()
     },
     saveSiteInfo() {
       localStorage.setItem('siteTitle', this.siteTitle.trim());
