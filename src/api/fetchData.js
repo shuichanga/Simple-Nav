@@ -1,6 +1,5 @@
 export const baseUrl = 'https://api.vika.cn/fusion/v1/datasheets';
 const fieldKey = 'name';
-const DEFAULT_ICON_URL = '/default.ico';
 
 // 共享给其它 API 模块使用。优先级：本地存储 > 环境变量
 export function getApiKey() {
@@ -29,8 +28,16 @@ export async function apiRequest(url, options = {}) {
   });
 
   if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || 'API请求失败');
+    let message = 'API请求失败';
+    try {
+      const errorData = await response.json();
+      message = errorData.message || message;
+    } catch (e) {
+      // 错误响应不是 JSON 时保留默认信息
+    }
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
   }
 
   return response.json();
@@ -57,7 +64,8 @@ export async function fetchData() {
         name: record.fields.name,
         url: record.fields.url,
         description: record.fields.description || '',
-        icon: record.fields.icon || DEFAULT_ICON_URL,
+        // 留空表示「未配置图标」，由 Card 组件走自动获取与兜底链
+        icon: record.fields.icon || '',
         sortOrder: record.fields.order ? parseInt(record.fields.order) : 0,
         updatedAt: record.updatedAt || record.fields.updatedAt || null
       };

@@ -320,6 +320,126 @@
 
             <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
               <h3 class="text-xl font-semibold mb-4 flex items-center">
+                <i class="fas fa-image text-blue-500 mr-2"></i>
+                图标巡检
+              </h3>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                检查表格中手动填写的图标地址，列出失效清单。只读操作，不会修改维基云数据。
+                图标字段留空表示自动获取；填 none / off 表示不显示图标。
+              </p>
+              <div class="flex flex-wrap gap-4 items-center">
+                <button
+                  @click="runIconAudit"
+                  :disabled="iconAuditLoading"
+                  class="bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white px-6 py-2 rounded"
+                >
+                  <i class="fas fa-search mr-2"></i>{{ iconAuditLoading ? '巡检中…' : '扫描手动图标' }}
+                </button>
+                <span v-if="iconAuditProgress" class="text-sm text-gray-500 dark:text-gray-400">
+                  <i class="fas fa-spinner fa-spin mr-2"></i>{{ iconAuditProgress }}
+                </span>
+              </div>
+
+              <div v-if="iconAuditMessage" class="mt-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300">
+                <i class="fas fa-exclamation-circle mr-2"></i>{{ iconAuditMessage }}
+              </div>
+
+              <div v-if="iconAuditResult" class="icon-audit-result">
+                <p class="icon-audit-summary">
+                  共 {{ iconAuditResult.total }} 个网站，检查 {{ iconAuditResult.checked }} 个手动图标，发现
+                  {{ iconAuditResult.invalid.length }} 个失效；其余 {{ iconAuditResult.skipped }} 个未配置手动图标。
+                </p>
+                <table v-if="iconAuditResult.invalid.length" class="icon-audit-table">
+                  <thead>
+                    <tr>
+                      <th class="icon-audit-check">
+                        <input
+                          type="checkbox"
+                          :checked="allIconAuditSelected"
+                          aria-label="全选失效图标"
+                          @change="toggleSelectAllIconAudit"
+                        />
+                      </th>
+                      <th>记录名</th>
+                      <th>原地址</th>
+                      <th>失败原因</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="row in iconAuditResult.invalid" :key="row.id + row.icon">
+                      <td class="icon-audit-check">
+                        <input
+                          type="checkbox"
+                          :value="row.id"
+                          v-model="iconAuditSelected"
+                          :aria-label="'选择 ' + row.name"
+                        />
+                      </td>
+                      <td>
+                        {{ row.name }}
+                        <span v-if="iconAuditClearedIds.includes(row.id)" class="icon-audit-cleared">已清理</span>
+                      </td>
+                      <td class="icon-audit-url">{{ row.icon }}</td>
+                      <td>{{ row.detail }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p v-else class="icon-audit-empty">未发现失效的手动图标。</p>
+
+                <div v-if="iconAuditResult.invalid.length" class="icon-audit-actions">
+                  <p class="icon-audit-selected">
+                    已选择 {{ iconAuditSelectedCount }} / {{ iconAuditResult.invalid.length }} 条。
+                    清理会把这些记录的 icon 写成空字符串（回到自动获取）；none / off 不会出现在清单里。
+                  </p>
+                  <button
+                    @click="startIconAuditTrial"
+                    :disabled="iconAuditClearing || iconAuditSelectedCount === 0"
+                    class="icon-audit-btn icon-audit-btn-primary"
+                  >
+                    <i class="fas fa-download mr-2"></i>
+                    备份并试写前 {{ iconAuditTrialSize }} 条
+                  </button>
+
+                  <div v-if="iconAuditTrial" class="icon-audit-trial">
+                    <p class="icon-audit-trial-result">
+                      试写结果：成功 {{ iconAuditTrial.done }} 条{{ iconAuditTrial.failed ? `，失败 ${iconAuditTrial.failed} 条` : '' }}。
+                      <span v-if="iconAuditTrial.error">最后错误：{{ iconAuditTrial.error }}</span>
+                    </p>
+                    <label class="icon-audit-confirm">
+                      <input type="checkbox" v-model="iconAuditTrialConfirmed" />
+                      我已核对试写结果，确认继续全量清理
+                    </label>
+                    <button
+                      @click="runIconAuditFullClear"
+                      :disabled="iconAuditClearing || !iconAuditTrialConfirmed || iconAuditRemainingCount === 0"
+                      class="icon-audit-btn icon-audit-btn-danger"
+                    >
+                      <i class="fas fa-eraser mr-2"></i>
+                      确认全量清理剩余 {{ iconAuditRemainingCount }} 条
+                    </button>
+                  </div>
+
+                  <p v-if="iconAuditClearProgress" class="icon-audit-progress">
+                    <i class="fas fa-spinner fa-spin mr-2"></i>{{ iconAuditClearProgress }}
+                  </p>
+
+                  <div
+                    v-if="iconAuditClearMessage"
+                    class="icon-audit-clear-message"
+                    :class="'is-' + iconAuditClearMessageType"
+                  >
+                    {{ iconAuditClearMessage }}
+                  </div>
+                </div>
+
+                <button v-if="iconAuditResult.invalid.length" @click="copyIconAuditReport" class="icon-audit-copy">
+                  <i class="fas fa-copy mr-2"></i>复制清单
+                </button>
+              </div>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+              <h3 class="text-xl font-semibold mb-4 flex items-center">
                 <i class="fas fa-database text-red-500 mr-2"></i>
                 数据备份
               </h3>
@@ -394,7 +514,8 @@
 
 <script>
 import Footer from '../components/Footer.vue'
-import { fetchData } from '../api/fetchData'
+import { fetchData, batchUpdateWebsiteRecords } from '../api/fetchData'
+import { auditManualIcons, getManualIconUrl } from '../utils/iconAudit'
 import { THEMES, getTheme, setTheme, applyTheme, getDarkMode, getThemeBackground, setThemeBackground, getThemeBackgroundImage, setThemeBackgroundImage, applyBackground } from '../utils/theme'
 import { buildBackup, downloadBackup, saveSnapshot, getSnapshots, restoreFromBackup } from '../utils/backup'
 import { scheduleSettingsSync, applySiteMeta, getSiteTitle, getSiteSubtitle, getSettingsDatasheetId } from '../api/settingsApi'
@@ -447,12 +568,45 @@ export default {
       backupProgress: '',
       backupMessage: '',
       backupMessageType: '',
-      snapshots: getSnapshots()
+      snapshots: getSnapshots(),
+      iconAuditLoading: false,
+      iconAuditProgress: '',
+      iconAuditMessage: '',
+      iconAuditResult: null,
+      iconAuditSelected: [],
+      iconAuditClearing: false,
+      iconAuditClearProgress: '',
+      iconAuditClearMessage: '',
+      iconAuditClearMessageType: 'success',
+      iconAuditTrial: null,
+      iconAuditTrialConfirmed: false,
+      iconAuditClearedIds: []
     }
   },
   computed: {
     gradientPreview() {
       return `linear-gradient(${this.gradientDirection}, ${this.gradientStart}, ${this.gradientEnd})`
+    },
+    selectedIconAuditRows() {
+      if (!this.iconAuditResult) return [];
+      const selected = this.iconAuditSelected;
+      return this.iconAuditResult.invalid.filter(row => selected.includes(row.id));
+    },
+    iconAuditSelectedCount() {
+      return this.selectedIconAuditRows.length;
+    },
+    iconAuditTrialSize() {
+      return Math.min(5, this.iconAuditSelectedCount);
+    },
+    iconAuditRemainingRows() {
+      return this.selectedIconAuditRows.filter(row => !this.iconAuditClearedIds.includes(row.id));
+    },
+    iconAuditRemainingCount() {
+      return this.iconAuditRemainingRows.length;
+    },
+    allIconAuditSelected() {
+      if (!this.iconAuditResult || !this.iconAuditResult.invalid.length) return false;
+      return this.iconAuditSelectedCount === this.iconAuditResult.invalid.length;
     }
   },
   methods: {
@@ -662,6 +816,212 @@ export default {
       alert('API配置已重置');
     },
 
+    // 只读巡检：拉取全部网站记录，检查手填的图标地址，不做任何写回
+    async runIconAudit() {
+      if (this.iconAuditLoading) return;
+      this.iconAuditLoading = true;
+      this.iconAuditMessage = '';
+      this.iconAuditResult = null;
+      this.iconAuditProgress = '正在获取网站数据...';
+
+      try {
+        const items = await fetchData();
+        this.iconAuditResult = await auditManualIcons(items, {
+          concurrency: 4,
+          onProgress: (done, total) => {
+            this.iconAuditProgress = `正在检查手动图标 ${done}/${total}...`;
+          }
+        });
+        // 默认全选，用户可取消勾选；每次重新扫描都重置试写与清理状态
+        this.iconAuditSelected = this.iconAuditResult.invalid.map(row => row.id);
+        this.iconAuditClearedIds = [];
+        this.iconAuditTrial = null;
+        this.iconAuditTrialConfirmed = false;
+        this.iconAuditClearMessage = '';
+        this.iconAuditClearMessageType = 'success';
+      } catch (error) {
+        this.iconAuditMessage = '巡检失败：' + error.message;
+      } finally {
+        this.iconAuditLoading = false;
+        this.iconAuditProgress = '';
+      }
+    },
+
+    copyIconAuditReport() {
+      if (!this.iconAuditResult || !this.iconAuditResult.invalid.length) return;
+      const lines = ['记录名\t原地址\t失败原因'];
+      for (const row of this.iconAuditResult.invalid) {
+        lines.push(`${row.name}\t${row.icon}\t${row.detail}`);
+      }
+      const text = lines.join('\n');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text)
+          .then(() => alert('清单已复制到剪贴板'))
+          .catch(() => this.fallbackCopyIconAudit(text));
+      } else {
+        this.fallbackCopyIconAudit(text);
+      }
+    },
+
+    fallbackCopyIconAudit(text) {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        alert('清单已复制到剪贴板');
+      } catch (e) {
+        alert('复制失败，请手动选择表格内容');
+      }
+      document.body.removeChild(textarea);
+    },
+
+    toggleSelectAllIconAudit(event) {
+      if (!this.iconAuditResult) return;
+      this.iconAuditSelected = event.target.checked
+        ? this.iconAuditResult.invalid.map(row => row.id)
+        : [];
+    },
+
+    // 执行前备份：导出记录名与 icon 原值，供用户留存/回滚
+    downloadIconAuditBackup(rows) {
+      const payload = {
+        type: 'icon-audit-backup',
+        exportedAt: new Date().toISOString(),
+        items: rows.map(row => ({
+          recordId: row.id,
+          name: row.name,
+          url: row.siteUrl,
+          icon: row.icon
+        }))
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `icon-audit-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    },
+
+    sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    },
+
+    // 429 / 5xx 按 1s → 2s → 4s 退避；其他错误直接抛出
+    async writeChunkWithRetry(chunk) {
+      let attempt = 0;
+      while (true) {
+        try {
+          await batchUpdateWebsiteRecords(chunk);
+          return;
+        } catch (error) {
+          const status = error && error.status;
+          const retriable = status === 429 || (status >= 500 && status < 600);
+          if (!retriable || attempt >= 3) throw error;
+          await this.sleep(1000 * Math.pow(2, attempt));
+          attempt += 1;
+        }
+      }
+    },
+
+    // 第一步：备份 + 试写前 5 条，逐条写入便于准确回报
+    async startIconAuditTrial() {
+      if (this.iconAuditClearing) return;
+      const selected = this.selectedIconAuditRows.filter(row => getManualIconUrl(row.icon));
+      if (!selected.length) return;
+      const trialRows = selected.slice(0, 5);
+
+      this.downloadIconAuditBackup(selected);
+
+      this.iconAuditClearing = true;
+      this.iconAuditTrial = null;
+      this.iconAuditTrialConfirmed = false;
+      this.iconAuditClearMessage = '';
+      this.iconAuditClearMessageType = 'success';
+
+      let done = 0;
+      let failed = 0;
+      let consecutive = 0;
+      let lastError = '';
+
+      for (let i = 0; i < trialRows.length; i++) {
+        this.iconAuditClearProgress = `正在试写 ${i + 1}/${trialRows.length}...`;
+        try {
+          await this.writeChunkWithRetry([{ recordId: trialRows[i].id, fields: { icon: '' } }]);
+          done += 1;
+          consecutive = 0;
+          if (!this.iconAuditClearedIds.includes(trialRows[i].id)) {
+            this.iconAuditClearedIds.push(trialRows[i].id);
+          }
+        } catch (error) {
+          failed += 1;
+          consecutive += 1;
+          lastError = error.message || '写入失败';
+          // 连续 3 条失败即停止，避免把问题放大
+          if (consecutive >= 3) break;
+        }
+        if (i < trialRows.length - 1) await this.sleep(500);
+      }
+
+      this.iconAuditTrial = {
+        attempted: done + failed,
+        done,
+        failed,
+        error: lastError
+      };
+      this.iconAuditClearing = false;
+      this.iconAuditClearProgress = '';
+      if (failed) {
+        this.iconAuditClearMessageType = 'error';
+        this.iconAuditClearMessage = `试写完成：成功 ${done} 条，失败 ${failed} 条${lastError ? `（${lastError}）` : ''}。请核对后再决定是否全量清理。`;
+      } else {
+        this.iconAuditClearMessageType = 'success';
+        this.iconAuditClearMessage = `试写完成：${done} 条全部成功。确认无误后可继续全量清理。`;
+      }
+    },
+
+    // 第二步：用户勾选确认后，分块清理剩余记录（每块 ≤100，块间 ≥500ms）
+    async runIconAuditFullClear() {
+      if (this.iconAuditClearing || !this.iconAuditTrialConfirmed) return;
+      const rows = this.iconAuditRemainingRows.filter(row => getManualIconUrl(row.icon));
+      if (!rows.length) return;
+
+      this.downloadIconAuditBackup(rows);
+
+      this.iconAuditClearing = true;
+      this.iconAuditClearMessage = '';
+      this.iconAuditClearMessageType = 'success';
+
+      let processed = 0;
+      try {
+        const patches = rows.map(row => ({ recordId: row.id, fields: { icon: '' } }));
+        for (let i = 0; i < patches.length; i += 100) {
+          const chunk = patches.slice(i, i + 100);
+          this.iconAuditClearProgress = `正在清理 ${i + chunk.length}/${patches.length}...`;
+          await this.writeChunkWithRetry(chunk);
+          processed += chunk.length;
+          for (const row of rows.slice(i, i + chunk.length)) {
+            if (!this.iconAuditClearedIds.includes(row.id)) {
+              this.iconAuditClearedIds.push(row.id);
+            }
+          }
+          if (i + 100 < patches.length) await this.sleep(500);
+        }
+        this.iconAuditClearMessageType = 'success';
+        this.iconAuditClearMessage = `全量清理完成：共处理 ${processed} 条，图标已回到自动获取。`;
+      } catch (error) {
+        this.iconAuditClearMessageType = 'error';
+        this.iconAuditClearMessage = `清理中断：已成功处理 ${processed} 条，第 ${processed + 1} 条所在批次失败（${error.message || '请求失败'}）。`;
+      } finally {
+        this.iconAuditClearing = false;
+        this.iconAuditClearProgress = '';
+      }
+    },
+
     collectSettings() {
       const settings = {};
       settings.theme = localStorage.getItem('theme');
@@ -757,3 +1117,247 @@ export default {
   }
 }
 </script>
+
+<style scoped>
+.icon-audit-result {
+  margin-top: 16px;
+}
+
+.icon-audit-summary {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
+.icon-audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.icon-audit-table th,
+.icon-audit-table td {
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid #e5e7eb;
+  color: #111827;
+}
+
+.icon-audit-table th {
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.icon-audit-url {
+  word-break: break-all;
+  color: #6b7280;
+}
+
+.icon-audit-empty {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #15803d;
+}
+
+.icon-audit-copy {
+  margin-top: 12px;
+  padding: 8px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background-color: #ffffff;
+  color: #111827;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.icon-audit-copy:hover {
+  background-color: #f3f4f6;
+}
+
+:global(.dark) .icon-audit-summary {
+  color: #9ca3af;
+}
+
+:global(.dark) .icon-audit-table th,
+:global(.dark) .icon-audit-table td {
+  border-bottom-color: #4b5563;
+  color: #f3f4f6;
+}
+
+:global(.dark) .icon-audit-table th,
+:global(.dark) .icon-audit-url {
+  color: #9ca3af;
+}
+
+:global(.dark) .icon-audit-empty {
+  color: #86efac;
+}
+
+:global(.dark) .icon-audit-copy {
+  border-color: #4b5563;
+  background-color: #374151;
+  color: #f3f4f6;
+}
+
+:global(.dark) .icon-audit-copy:hover {
+  background-color: #4b5563;
+}
+
+.icon-audit-check {
+  width: 32px;
+  text-align: center;
+}
+
+.icon-audit-cleared {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 8px;
+  border-radius: 4px;
+  background-color: #f0fdf4;
+  color: #15803d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+:global(.dark) .icon-audit-cleared {
+  background-color: #052e16;
+  color: #86efac;
+}
+
+.icon-audit-actions {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.icon-audit-selected {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
+.icon-audit-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1.5;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.icon-audit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.icon-audit-btn-primary {
+  background-color: #1d4ed8;
+  color: #ffffff;
+}
+
+.icon-audit-btn-primary:hover:not(:disabled) {
+  background-color: #1e40af;
+}
+
+.icon-audit-btn-danger {
+  margin-left: 12px;
+  background-color: #ffffff;
+  color: #b91c1c;
+  border-color: #fca5a5;
+}
+
+.icon-audit-btn-danger:hover:not(:disabled) {
+  background-color: #fef2f2;
+}
+
+.icon-audit-trial {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background-color: #f8f9fa;
+}
+
+.icon-audit-trial-result {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #111827;
+}
+
+.icon-audit-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #111827;
+  cursor: pointer;
+}
+
+.icon-audit-progress {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
+.icon-audit-clear-message {
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.icon-audit-clear-message.is-success {
+  background-color: #f0fdf4;
+  color: #15803d;
+}
+
+.icon-audit-clear-message.is-error {
+  background-color: #fef2f2;
+  color: #b91c1c;
+}
+
+:global(.dark) .icon-audit-actions {
+  border-top-color: #4b5563;
+}
+
+:global(.dark) .icon-audit-selected,
+:global(.dark) .icon-audit-progress {
+  color: #9ca3af;
+}
+
+:global(.dark) .icon-audit-trial {
+  border-color: #4b5563;
+  background-color: #374151;
+}
+
+:global(.dark) .icon-audit-trial-result,
+:global(.dark) .icon-audit-confirm {
+  color: #f3f4f6;
+}
+
+:global(.dark) .icon-audit-btn-danger {
+  background-color: #374151;
+  color: #fca5a5;
+  border-color: #7f1d1d;
+}
+
+:global(.dark) .icon-audit-clear-message.is-success {
+  background-color: #052e16;
+  color: #86efac;
+}
+
+:global(.dark) .icon-audit-clear-message.is-error {
+  background-color: #450a0a;
+  color: #fca5a5;
+}
+</style>

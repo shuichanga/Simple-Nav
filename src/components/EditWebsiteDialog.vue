@@ -74,8 +74,23 @@
             id="edit-icon"
             v-model="formData.icon"
             class="w-full bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-2 border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="请输入图标URL（可选）"
+            placeholder="留空 = 自动获取；填 none = 不显示；或填图片地址"
+            @input="scheduleIconProbe"
           />
+          <div class="icon-preview">
+            <div class="icon-preview-box">
+              <img
+                v-if="iconPreviewUrl"
+                :src="iconPreviewUrl"
+                alt="图标预览"
+                referrerpolicy="no-referrer"
+              />
+              <span v-else>{{ iconPreviewChar }}</span>
+            </div>
+            <p class="icon-preview-hint" :class="'is-' + iconProbeState">
+              {{ iconProbeMessage }}
+            </p>
+          </div>
         </div>
         
         <div class="mb-4">
@@ -157,13 +172,28 @@ export default {
       },
       error: '',
       success: '',
-      loading: false
+      loading: false,
+      iconPreviewUrl: '',
+      iconProbeState: 'idle',
+      iconProbeMessage: '留空 = 自动获取图标；填 none / off = 只显示首字母色块',
+      iconProbeTimer: null,
+      iconProbeWatchdog: null,
+      iconProbeToken: 0
     };
+  },
+  computed: {
+    iconPreviewChar() {
+      const name = String(this.formData.name || '').trim();
+      return name ? Array.from(name)[0].toUpperCase() : '?';
+    }
   },
   watch: {
     visible(newVal) {
       if (newVal && this.websiteData) {
         this.populateForm();
+      } else if (!newVal) {
+        this.clearIconProbe();
+        this.iconProbeToken += 1;
       }
     },
     websiteData(newVal) {
@@ -171,6 +201,9 @@ export default {
         this.populateForm();
       }
     }
+  },
+  beforeUnmount() {
+    this.clearIconProbe();
   },
   methods: {
     populateForm() {
@@ -187,6 +220,75 @@ export default {
 
       this.error = '';
       this.success = '';
+      this.scheduleIconProbe();
+    },
+
+    clearIconProbe() {
+      if (this.iconProbeTimer) {
+        clearTimeout(this.iconProbeTimer);
+        this.iconProbeTimer = null;
+      }
+      if (this.iconProbeWatchdog) {
+        clearTimeout(this.iconProbeWatchdog);
+        this.iconProbeWatchdog = null;
+      }
+    },
+
+    // 输入图标地址后就地预览；失败或尺寸过小只提示，不阻止保存
+    scheduleIconProbe() {
+      this.clearIconProbe();
+      const token = ++this.iconProbeToken;
+      const raw = String(this.formData.icon || '').trim();
+      this.iconPreviewUrl = '';
+
+      if (!raw || raw === '/default.ico') {
+        this.iconProbeState = 'idle';
+        this.iconProbeMessage = '留空 = 自动获取图标；失败时显示首字母色块';
+        return;
+      }
+      if (/^(none|off)$/i.test(raw)) {
+        this.iconProbeState = 'idle';
+        this.iconProbeMessage = '已设为不显示图标，仅显示首字母色块';
+        return;
+      }
+
+      this.iconProbeState = 'loading';
+      this.iconProbeMessage = '正在检查图标…';
+      this.iconProbeTimer = setTimeout(() => {
+        this.iconProbeTimer = null;
+        this.probeIconPreview(raw, token);
+      }, 500);
+    },
+
+    probeIconPreview(raw, token) {
+      const apply = (state, message, url) => {
+        if (token !== this.iconProbeToken) return;
+        this.clearIconProbe();
+        this.iconProbeState = state;
+        this.iconProbeMessage = message;
+        this.iconPreviewUrl = url || '';
+      };
+
+      const img = new Image();
+      img.referrerPolicy = 'no-referrer';
+      this.iconProbeWatchdog = setTimeout(() => {
+        apply('warn', '图标加载超时，卡片会自动降级到自动获取或字母色块（仍可保存）');
+      }, 8000);
+
+      img.onload = () => {
+        const width = img.naturalWidth;
+        const height = img.naturalHeight;
+        if (width > 0 && height > 0 && (width < 16 || height < 16)) {
+          apply('warn', `图标尺寸过小（${width}×${height}），卡片会自动降级（仍可保存）`);
+          return;
+        }
+        const sizeText = width > 0 && height > 0 ? `（${width}×${height}）` : '';
+        apply('ok', `图标可正常加载${sizeText}`, raw);
+      };
+      img.onerror = () => {
+        apply('warn', '图标加载失败（404 / 超时 / 不是图片），卡片会自动降级（仍可保存）');
+      };
+      img.src = raw;
     },
 
     async submitEdit() {
@@ -229,3 +331,59 @@ export default {
   }
 };
 </script>
+
+<style scoped>
+.icon-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.icon-preview-box {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background-color: #f8f9fa;
+  font-size: 16px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.icon-preview-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.icon-preview-hint {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
+.icon-preview-hint.is-ok {
+  color: #15803d;
+}
+
+.icon-preview-hint.is-warn {
+  color: #b45309;
+}
+
+.icon-preview-hint.is-loading {
+  color: #1d4ed8;
+}
+
+:global(.dark) .icon-preview-box {
+  border-color: #4b5563;
+  background-color: #374151;
+  color: #9ca3af;
+}
+</style>
